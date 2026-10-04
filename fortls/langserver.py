@@ -77,6 +77,8 @@ class LangServer:
         self.workspace: dict[str, FortranFile] = {}
         #: Preprocessor definitions the workspace files are initialised with
         self.workspace_pp_defs: dict = {}
+        #: Preprocessor definitions of the files parsed again since, by path
+        self.file_pp_defs: dict[str, dict] = {}
         self.obj_tree: dict = {}
         self.link_version = 0
         self._version = version.parse(__version__)
@@ -1435,7 +1437,7 @@ class LangServer:
             (
                 path,
                 word,
-                self.workspace_pp_defs,
+                self.file_pp_defs.get(path, self.workspace_pp_defs),
                 self.pp_suffixes,
                 self.include_dirs,
                 self.sort_keywords,
@@ -1493,8 +1495,8 @@ class LangServer:
         # Update workspace from file contents and path
         try:
             file_obj = self.workspace.get(filepath)
-            # A summarized file whose contents have not changed since the
-            # workspace was initialised is parsed as it was then
+            # A summarized file whose contents have not changed since it was
+            # last parsed is parsed as it was then
             restore = False
             if read_file:
                 if file_obj is None:
@@ -1517,9 +1519,11 @@ class LangServer:
                 restore = summary_hash == file_obj.hash
             if restore:
                 ast_new = file_obj.parse(
-                    pp_defs=self.workspace_pp_defs, include_dirs=self.include_dirs
+                    pp_defs=self.file_pp_defs.get(filepath, self.workspace_pp_defs),
+                    include_dirs=self.include_dirs,
                 )
             else:
+                self.file_pp_defs[filepath] = self.pp_defs
                 ast_new = file_obj.parse(
                     pp_defs=self.pp_defs, include_dirs=self.include_dirs
                 )

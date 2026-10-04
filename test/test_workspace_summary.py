@@ -164,3 +164,47 @@ def test_definition_and_references_in_summarized_files(project):
         ("shapes.f90", 20),
         ("shapes.f90", 20),
     ]
+
+
+def test_summarized_file_keeps_definitions_of_its_last_parse(tmp_path):
+    counter, user = tmp_path / "counter.F90", tmp_path / "user.f90"
+    counter.write_text("""module counter
+#ifdef HAVE_TOTAL
+  integer :: total = 0
+#endif
+contains
+  subroutine bump()
+    total = total + 1
+  end subroutine bump
+end module counter
+""")
+    user.write_text("program user\n  use counter\n  total = 2\nend program user\n")
+    server = init_server(tmp_path)
+    # A file opened after initialize adds its definitions to the server's
+    config = tmp_path / "config.F90"
+    config.write_text("#define HAVE_TOTAL\n")
+    server.serve_onOpen({"params": {"textDocument": {"uri": str(config)}}})
+    # counter.F90 changed since initialize: parsed with the server's definitions
+    counter.write_text(counter.read_text() + "! changed\n")
+    request = {"params": {"textDocument": {"uri": str(counter)}}}
+    server.serve_onOpen(request)
+    server.serve_onClose(request)
+    # References in counter.F90 are searched with the same definitions
+    refs = server.serve_references(
+        {
+            "params": {
+                "textDocument": {"uri": str(user)},
+                "position": {"line": 2, "character": 3},
+            }
+        }
+    )
+    assert sorted(
+        (Path(ref["uri"]).name, ref["range"]["start"]["line"]) for ref in refs
+    ) == [
+        ("counter.F90", 2),
+        ("counter.F90", 6),
+        ("counter.F90", 6),
+        ("user.f90", 2),
+    ]
+    # And counter.F90 is parsed in full again with them
+    assert "total" in names(server.get_file(str(counter)).ast.global_dict["counter"])
