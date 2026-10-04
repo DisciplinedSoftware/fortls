@@ -26,12 +26,14 @@ def test_command_line_general_options():
 def test_command_line_file_parsing_options():
     args = parser.parse_args(
         "--source_dirs tmp ./local /usr/include/** --incl_suffixes .FF .fpc .h f20"
-        " --excl_suffixes _tmp.f90 _h5hut_tests.F90 --excl_paths exclude tests".split()
+        " --excl_suffixes _tmp.f90 _h5hut_tests.F90 --excl_paths exclude tests"
+        " --max_workspace_files 500".split()
     )
     assert args.source_dirs == {"tmp", "./local", "/usr/include/**"}
     assert args.incl_suffixes == {".FF", ".fpc", ".h", "f20"}
     assert args.excl_suffixes == {"_tmp.f90", "_h5hut_tests.F90"}
     assert args.excl_paths == {"exclude", "tests"}
+    assert args.max_workspace_files == 500
 
 
 def test_command_line_autocomplete_options():
@@ -114,6 +116,7 @@ def test_config_file_dir_parsing_options():
     assert server.incl_suffixes == {".FF", ".fpc", ".h", "f20"}
     assert server.excl_suffixes == {"_tmp.f90", "_h5hut_tests.F90"}
     assert server.excl_paths == {"excldir", "hover/**"}
+    assert server.max_workspace_files == 500
 
 
 def test_config_file_autocomplete_options():

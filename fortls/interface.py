@@ -154,6 +154,17 @@ def cli(name: str = "fortls") -> argparse.ArgumentParser:
         metavar="DIRS",
         help="Folders to exclude from parsing",
     )
+    group.add_argument(
+        "--max_workspace_files",
+        type=int,
+        default=10000,
+        metavar="INTEGER",
+        help=(
+            "Stop indexing the workspace when more source files than this are found"
+            " while source_dirs is not specified, 0 for no limit"
+            " (default: %(default)s)"
+        ),
+    )
 
     # Autocomplete options -----------------------------------------------------
     group = parser.add_argument_group("Autocomplete options")

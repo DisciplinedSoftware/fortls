@@ -1593,6 +1593,9 @@ class LangServer:
         # Update the source file REGEX
         self.FORTRAN_SRC_EXT_REGEX = create_src_file_exts_str(self.incl_suffixes)
         self.excl_suffixes = set(config_dict.get("excl_suffixes", self.excl_suffixes))
+        self.max_workspace_files = config_dict.get(
+            "max_workspace_files", self.max_workspace_files
+        )
 
     def _load_config_file_general(self, config_dict: dict) -> None:
         # General options ------------------------------------------------------
@@ -1686,7 +1689,9 @@ class LangServer:
     def _add_source_dirs(self) -> None:
         """Will recursively add all subdirectories that contain Fortran
         source files only if the option `source_dirs` has not been specified
-        in the configuration file or no configuration file is present
+        in the configuration file or no configuration file is present.
+        No directory is added when more than `max_workspace_files` source files
+        are found, the walk stops there.
         """
         # Recursively add sub-directories that only match Fortran extensions
         if len(self.source_dirs) != 1:
@@ -1694,12 +1699,40 @@ class LangServer:
         if self.root_path not in self.source_dirs:
             return None
         self.source_dirs = set()
+        n_files = 0
         for root, dirs, files in os.walk(self.root_path):
             # Match not found
             if not list(filter(self.FORTRAN_SRC_EXT_REGEX.search, files)):
                 continue
             if root not in self.source_dirs and root not in self.excl_paths:
+                n_files += sum(1 for f in files if self._is_source_file(root, f))
+                if 0 < self.max_workspace_files < n_files:
+                    self.source_dirs = set()
+                    self.post_message(
+                        f"Workspace not indexed: more than {self.max_workspace_files}"
+                        f" Fortran source files under {self.root_path}. Point"
+                        " `source_dirs` at the project sources, exclude build and"
+                        " generated trees with `excl_paths`, or raise"
+                        " `max_workspace_files` (0 for no limit).",
+                        Severity.warn,
+                    )
+                    return None
                 self.source_dirs.add(str(Path(root).resolve()))
+
+    def _is_source_file(self, src_dir: str, f: str) -> bool:
+        """Whether the file `f` in `src_dir` is a source file to parse: a
+        Fortran file extension, not in `excl_paths` nor ending with `excl_suffixes`
+        """
+        p = os.path.join(src_dir, f)
+        return (
+            os.path.isfile(p)
+            # File extension must match supported extensions
+            and bool(self.FORTRAN_SRC_EXT_REGEX.search(f))
+            # File cannot be in excluded paths/files
+            and p not in self.excl_paths
+            # File cannot have an excluded extension
+            and not any(f.endswith(ext) for ext in self.excl_suffixes)
+        )
 
     def _get_source_files(self) -> list[str]:
         """Get all the source files present in `self.source_dirs`,
@@ -1718,20 +1751,8 @@ class LangServer:
         file_list = []
         for src_dir in self.source_dirs:
             for f in os.listdir(src_dir):
-                p = os.path.join(src_dir, f)
-                # Process only files
-                if not os.path.isfile(p):
-                    continue
-                # File extension must match supported extensions
-                if not self.FORTRAN_SRC_EXT_REGEX.search(f):
-                    continue
-                # File cannot be in excluded paths/files
-                if p in self.excl_paths:
-                    continue
-                # File cannot have an excluded extension
-                if any(f.endswith(ext) for ext in self.excl_suffixes):
-                    continue
-                file_list.append(p)
+                if self._is_source_file(src_dir, f):
+                    file_list.append(os.path.join(src_dir, f))
         return file_list
 
     def _config_logger(self, request) -> None:

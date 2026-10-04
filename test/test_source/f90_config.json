@@ -10,6 +10,7 @@
   "incl_suffixes": [".FF", ".fpc", ".h", "f20"],
   "excl_suffixes": ["_tmp.f90", "_h5hut_tests.F90"],
   "excl_paths": ["excldir", "hover/**"],
+  "max_workspace_files": 500,
 
   "autocomplete_no_prefix": true,
   "autocomplete_no_snippets": true,

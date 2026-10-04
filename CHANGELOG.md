@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Added `max_workspace_files` to stop indexing a workspace with more source
+  files than expected, instead of exhausting memory
+  ([#XXX](https://github.com/fortran-lang/fortls/issues/XXX))
+
 ### Fixed
 
 - Fixed missing registered capability for `textDocument/documentHighlight`

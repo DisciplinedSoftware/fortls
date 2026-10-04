@@ -56,6 +56,7 @@ All the ``fortls`` settings with their default arguments can be found below
       "incl_suffixes": [],
       "excl_suffixes": [],
       "excl_paths": [],
+      "max_workspace_files": 10000,
 
       "autocomplete_no_prefix": false,
       "autocomplete_no_snippets": false,
@@ -146,6 +147,24 @@ its subdirectories from being parsed you should define it like so
    {
       "excl_paths": ["exclude_dir/**"]
    }
+
+max_workspace_files
+*******************
+
+.. code-block:: json
+
+   {
+      "max_workspace_files": 50000
+   }
+
+When ``source_dirs`` is not specified, ``fortls`` parses every Fortran source
+file under the project and keeps it in memory. A project root that also holds
+build trees, copies of the sources or dependency caches can contain far more
+files than the project itself, so the search stops when more than
+``max_workspace_files`` source files are found: the workspace is then not
+indexed (open files still are) and a message asks to configure the sources.
+``source_dirs`` and ``excl_paths`` select what to index; ``0`` removes the limit.
+The limit does not apply when ``source_dirs`` is specified.
 
 Preprocessor
 ############
