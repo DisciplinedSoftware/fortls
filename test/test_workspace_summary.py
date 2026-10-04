@@ -208,3 +208,36 @@ end module counter
     ]
     # And counter.F90 is parsed in full again with them
     assert "total" in names(server.get_file(str(counter)).ast.global_dict["counter"])
+
+
+@pytest.mark.parametrize("request_file, line", [("decl.f90", 0), ("prog.f90", 4)])
+def test_references_through_includes_of_summarized_files(tmp_path, request_file, line):
+    (tmp_path / "decl.f90").write_text("integer :: total\n")
+    (tmp_path / "prog.f90").write_text("""module counters
+  include "decl.f90"
+contains
+  subroutine bump()
+    total = total + 1
+  end subroutine bump
+end module counters
+""")
+    server = init_server(tmp_path)
+    # The other file is summarized: its full parse resolves its includes, or
+    # is included where the summarized file is
+    refs = server.serve_references(
+        {
+            "params": {
+                "textDocument": {"uri": str(tmp_path / request_file)},
+                "position": {"line": line, "character": 12},
+            }
+        }
+    )
+    assert sorted(
+        (Path(ref["uri"]).name, ref["range"]["start"]["line"]) for ref in refs
+    ) == [("decl.f90", 0), ("prog.f90", 4), ("prog.f90", 4)]
+    # The workspace is restored: the module includes the objects of decl.f90
+    module = server.workspace[str(tmp_path / "prog.f90")].ast.global_dict["counters"]
+    totals = [child for child in module.children if child.name == "total"]
+    assert len(totals) == 1
+    assert totals[0].parent is module
+    assert totals[0].file_ast is server.workspace[str(tmp_path / "decl.f90")].ast

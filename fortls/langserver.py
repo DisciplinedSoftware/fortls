@@ -1048,6 +1048,7 @@ class LangServer:
                         file_refs.append([i, match.start(1), match.end(1)])
             if len(file_refs) > 0:
                 refs[filename] = file_refs
+        full_files.close()
         return refs, ref_objs
 
     def serve_references(self, request):
@@ -1444,6 +1445,12 @@ class LangServer:
             )
             for path in paths
         ]
+        # The files that include each file, its full parse is included there
+        includers: dict[str, list[FortranAST]] = {}
+        for file_obj in self.workspace.values():
+            for inc in file_obj.ast.include_statements:
+                path = os.path.join(os.path.dirname(file_obj.ast.path), inc.path)
+                includers.setdefault(os.path.normpath(path), []).append(file_obj.ast)
         pool = None
         if self.nthreads > 1 and len(paths) > 1:
             pool = Pool(processes=self.nthreads)
@@ -1459,9 +1466,21 @@ class LangServer:
                     except Exception:
                         # e.g. an AST too deeply nested to be sent back
                         full_obj = self._parse_file_with_word(arg)
-                if full_obj is not None:
-                    full_obj.ast.resolve_links(self.obj_tree, self.link_version)
-                yield full_obj
+                if full_obj is None:
+                    yield full_obj
+                    continue
+                # Resolve the includes as in the workspace, then restore it
+                path = full_obj.path
+                for ast in includers.get(path, []):
+                    ast.resolve_includes({path: full_obj}, path=path)
+                full_obj.ast.resolve_includes(self.workspace)
+                full_obj.ast.resolve_links(self.obj_tree, self.link_version)
+                try:
+                    yield full_obj
+                finally:
+                    for ast in includers.get(path, []):
+                        ast.resolve_includes(self.workspace, path=path)
+                    self.workspace[path].ast.resolve_includes(self.workspace)
         finally:
             if pool is not None:
                 pool.terminate()
