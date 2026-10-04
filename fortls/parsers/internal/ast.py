@@ -359,6 +359,12 @@ class FortranAST:
         self.private_list = []
         self.end_errors = []
         self.parse_errors = []
+        # Parser state, it can refer to dropped objects
+        self.last_obj = None
+        self.current_scope = None
+        self.scope_stack = []
+        self.end_stack = []
+        self.pending_doc = None
 
     def close_file(self, line_number: int):
         # Close open scopes
